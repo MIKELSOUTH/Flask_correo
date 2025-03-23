@@ -1,46 +1,18 @@
 from flask import Flask, jsonify, request
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import qrcode
 import os
 import time
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.image import MIMEImage
-
-app = Flask(__name__)
 
 # Configuración de SMTP (para Gmail)
-SMTP_SERVER = os.environ.get('SMTP_SERVER')  # Se toma el valor de la variable de entorno
-SMTP_PORT = os.environ.get('SMTP_PORT')  # Se toma el valor del puerto de la variable de entorno
-GMAIL_USER = os.environ.get('GMAIL_USER')  # Dirección de correo de la variable de entorno
-GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD')  # Contraseña de la variable de entorno
+SMTP_SERVER = 'smtp.gmail.com'
+SMTP_PORT = 587
+GMAIL_USER = os.environ.get('EMAIL_USER')  # Tu correo de Gmail (en variable de entorno)
+GMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD')  # Tu contraseña de Gmail o contraseña de aplicación
 
-def enviar_correo(destinatario, subject, body, image_path):
-    try:
-        # Crear el mensaje
-        msg = MIMEMultipart()
-        msg['From'] = GMAIL_USER
-        msg['To'] = destinatario
-        msg['Subject'] = subject
-
-        # Cuerpo del mensaje
-        msg.attach(MIMEText(body, 'plain'))
-
-        # Adjuntar el archivo de imagen
-        with open(image_path, 'rb') as file:
-            img = MIMEImage(file.read())
-            img.add_header('Content-ID', '<qr_image>')
-            msg.attach(img)
-
-        # Conectar al servidor SMTP y enviar el correo
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()  # Establecer la conexión segura
-        server.login(GMAIL_USER, GMAIL_PASSWORD)
-        server.sendmail(GMAIL_USER, destinatario, msg.as_string())
-        server.quit()
-        print("Correo enviado exitosamente")
-    except Exception as e:
-        print(f"Error al enviar el correo: {e}")
+app = Flask(__name__)
 
 @app.route('/')
 def index():
@@ -58,7 +30,7 @@ def generar_qr():
 
         pedido_id = data['pedido_id']
         expiracion = data['expiracion']
-        email_destinatario = data['email']
+        email_cliente = data['email']
 
         # Crear el contenido del QR
         qr_content = f"{pedido_id},{expiracion}"
@@ -86,10 +58,8 @@ def generar_qr():
         # Calcular la fecha de expiración en formato UNIX (timestamp)
         expiration_time = time.time() + expiracion
 
-        # Enviar el correo con el código QR adjunto
-        subject = f"Tu código QR para el pedido {pedido_id}"
-        body = f"Hola, aquí está tu código QR para el pedido {pedido_id}. Caducará a las {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(expiration_time))}."
-        enviar_correo(email_destinatario, subject, body, img_path)
+        # Enviar el QR por correo
+        send_email(email_cliente, qr_filename)
 
         # Devolver la respuesta con el enlace al QR y la expiración
         return jsonify({
@@ -100,6 +70,34 @@ def generar_qr():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+def send_email(email_cliente, qr_filename):
+    try:
+        # Crear el objeto de mensaje
+        msg = MIMEMultipart()
+        msg['From'] = GMAIL_USER
+        msg['To'] = email_cliente
+        msg['Subject'] = 'Tu código QR para el pedido'
+
+        # Cuerpo del mensaje
+        body = 'Adjunto encontrarás el código QR para retirar tu producto.'
+        msg.attach(MIMEText(body, 'plain'))
+
+        # Adjuntar el archivo QR
+        with open(os.path.join('static', qr_filename), 'rb') as attachment:
+            part = MIMEText(attachment.read(), 'base64', 'utf-8')
+            part.add_header('Content-Disposition', 'attachment', filename=qr_filename)
+            msg.attach(part)
+
+        # Conexión al servidor SMTP
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()  # Usar TLS
+            server.login(GMAIL_USER, GMAIL_PASSWORD)
+            text = msg.as_string()
+            server.sendmail(GMAIL_USER, email_cliente, text)
+
+    except Exception as e:
+        print(f"Error al enviar correo: {str(e)}")
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=10000)
