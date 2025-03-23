@@ -10,10 +10,10 @@ from email.mime.image import MIMEImage
 app = Flask(__name__)
 
 # Configuración de SMTP (para Gmail)
-SMTP_SERVER = 'smtp.gmail.com'
-SMTP_PORT = 587
-GMAIL_USER = 'tu_correo@gmail.com'  # Tu correo de Gmail
-GMAIL_PASSWORD = 'tu_contraseña'  # Tu contraseña de Gmail o contraseña de aplicación
+SMTP_SERVER = os.environ.get('SMTP_SERVER')  # Se toma el valor de la variable de entorno
+SMTP_PORT = os.environ.get('SMTP_PORT')  # Se toma el valor del puerto de la variable de entorno
+GMAIL_USER = os.environ.get('GMAIL_USER')  # Dirección de correo de la variable de entorno
+GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD')  # Contraseña de la variable de entorno
 
 def enviar_correo(destinatario, subject, body, image_path):
     try:
