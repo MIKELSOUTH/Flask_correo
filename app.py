@@ -1,66 +1,104 @@
-from flask import Flask, request, jsonify
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+from flask import Flask, jsonify, request
+import qrcode
 import os
+import time
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 
 app = Flask(__name__)
 
 # Configuración de SMTP (para Gmail)
-SMTP_SERVER = 'smtp.gmail.com'
-SMTP_PORT = 587
+SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+SMTP_PORT = os.environ.get('SMTP_PORT', 587)
 GMAIL_USER = os.environ.get('EMAIL_USER')  # Tu correo de Gmail (en variable de entorno)
 GMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD')  # Tu contraseña de Gmail o contraseña de aplicación
 
-@app.route('/generar_qr', methods=['POST'])
-def generar_qr():
-    # Obtener los datos de la solicitud JSON
-    data = request.get_json()
-
-    if 'email' not in data or 'producto' not in data:
-        return jsonify({'error': 'Faltan parámetros en la solicitud'}), 400
-
-    email = data['email']
-    producto = data['producto']
-    
-    print(f"Datos recibidos - Email: {email}, Producto: {producto}")  # Verifica los datos
-
-    # Generar el QR (esto es solo un ejemplo)
-    qr_url = f"static/{producto}.png"  # Aquí deberías generar realmente el QR, esto es solo un ejemplo
-    print(f"QR generado: {qr_url}")
-
-    # Enviar el correo con el QR (esto es un ejemplo de cómo enviarlo)
+# Función para enviar correo electrónico
+def send_email(recipient_email, qr_image_path, pedido_id):
     try:
-        # Crear el mensaje de correo
         msg = MIMEMultipart()
         msg['From'] = GMAIL_USER
-        msg['To'] = email
-        msg['Subject'] = 'Tu Código QR para el Producto'
+        msg['To'] = recipient_email
+        msg['Subject'] = f"Tu código QR para el pedido {pedido_id}"
 
         # Cuerpo del correo
-        body = f"Hola! Aquí tienes tu código QR para el producto {producto}: {qr_url}"
-        msg.attach(MIMEText(body, 'plain'))
+        body = MIMEText(f"Hola,\n\nAquí tienes el código QR para tu pedido {pedido_id}. El código QR es válido hasta la expiración indicada.", 'plain')
+        msg.attach(body)
 
-        # Configurar el servidor SMTP
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()  # Usar seguridad TLS
-        server.login(GMAIL_USER, GMAIL_PASSWORD)
-        
+        # Adjuntar la imagen del QR
+        with open(qr_image_path, 'rb') as qr_file:
+            qr_image = MIMEImage(qr_file.read())
+            qr_image.add_header('Content-Disposition', 'attachment', filename=os.path.basename(qr_image_path))
+            msg.attach(qr_image)
+
         # Enviar el correo
-        server.sendmail(GMAIL_USER, email, msg.as_string())
-        server.quit()
-        
-        print(f"Correo enviado a {email} exitosamente.")
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()  # Activar cifrado TLS
+            server.login(GMAIL_USER, GMAIL_PASSWORD)
+            server.sendmail(GMAIL_USER, recipient_email, msg.as_string())
 
+        print(f"Correo enviado a {recipient_email} con el código QR.")
+    except Exception as e:
+        print(f"Error al enviar el correo: {e}")
+
+@app.route('/')
+def index():
+    return "Servidor Flask en funcionamiento"
+
+@app.route('/generar_qr', methods=['POST'])
+def generar_qr():
+    try:
+        # Obtener los datos del cuerpo de la solicitud
+        data = request.get_json()
+
+        # Verificar que los datos necesarios estén presentes
+        if 'pedido_id' not in data or 'expiracion' not in data or 'email' not in data:
+            return jsonify({'error': 'Faltan parámetros en la solicitud'}), 400
+
+        pedido_id = data['pedido_id']
+        expiracion = data['expiracion']
+        email_cliente = data['email']  # Correo electrónico del cliente
+
+        # Crear el contenido del QR
+        qr_content = f"{pedido_id},{expiracion}"
+
+        # Generar el código QR
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(qr_content)
+        qr.make(fit=True)
+
+        # Crear la imagen del QR
+        img = qr.make_image(fill='black', back_color='white')
+
+        # Crear un nombre único para el archivo QR
+        qr_filename = f"{pedido_id}.png"
+
+        # Guardar el archivo en la carpeta 'static'
+        img_path = os.path.join('static', qr_filename)
+        img.save(img_path)
+
+        # Calcular la fecha de expiración en formato UNIX (timestamp)
+        expiration_time = time.time() + expiracion
+
+        # Enviar el código QR por correo electrónico
+        send_email(email_cliente, img_path, pedido_id)
+
+        # Devolver la respuesta con el enlace al QR y la expiración
         return jsonify({
-            'expiracion': 3379773973.526267,
-            'pedido_id': f'PEDIDO-{producto}',
-            'qr_url': qr_url
+            'pedido_id': pedido_id,
+            'expiracion': expiration_time,
+            'qr_url': img_path
         })
 
     except Exception as e:
-        print(f"Error al enviar el correo: {e}")
-        return jsonify({'error': 'Error al enviar el correo'}), 500
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=10000)
