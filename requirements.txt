@@ -1,6 +1,6 @@
 flask
+flask-cors
 paho-mqtt
 qrcode
 gunicorn
 Pillow
-flask-cors
