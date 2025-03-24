@@ -3,3 +3,4 @@ paho-mqtt
 qrcode
 gunicorn
 Pillow
+flask-cors
