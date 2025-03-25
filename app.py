@@ -1,4 +1,3 @@
-from flask import Flask, jsonify, request
 import qrcode
 import os
 import time
@@ -6,6 +5,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
@@ -47,22 +47,6 @@ def send_email(recipient_email, qr_image_path, pedido_id):
 def index():
     return "Servidor Flask en funcionamiento"
 
-# Ruta para verificar el estado del pedido
-@app.route('/verificar_estado', methods=['POST'])
-def verificar_estado():
-    try:
-        data = request.get_json()
-        pedido_id = data.get('pedido_id')
-
-        # Aquí iría la lógica para verificar el estado del pedido
-        if pedido_id:
-            # Para esta demostración, simplemente devolvemos un estado simulado.
-            return jsonify({"estado": "Pendiente", "pedido_id": pedido_id}), 200
-        else:
-            return jsonify({"error": "Falta el pedido_id"}), 400
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 @app.route('/generar_qr', methods=['POST'])
 def generar_qr():
     try:
@@ -70,12 +54,11 @@ def generar_qr():
         data = request.get_json()
 
         # Verificar que los datos necesarios estén presentes
-        if 'pedido_id' not in data or 'expiracion' not in data or 'email' not in data:
+        if 'pedido_id' not in data or 'expiracion' not in data:
             return jsonify({'error': 'Faltan parámetros en la solicitud'}), 400
 
         pedido_id = data['pedido_id']
         expiracion = data['expiracion']
-        email_cliente = data['email']  # Correo electrónico del cliente
 
         # Crear el contenido del QR
         qr_content = f"{pedido_id},{expiracion}"
@@ -103,8 +86,8 @@ def generar_qr():
         # Calcular la fecha de expiración en formato UNIX (timestamp)
         expiration_time = time.time() + expiracion
 
-        # Enviar el código QR por correo electrónico
-        send_email(email_cliente, img_path, pedido_id)
+        # Enviar el código QR a tu correo personal (ya configurado)
+        send_email(GMAIL_USER, img_path, pedido_id)  # Enviar a tu correo personal
 
         # Devolver la respuesta con el enlace al QR y la expiración
         return jsonify({
