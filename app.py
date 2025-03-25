@@ -47,6 +47,22 @@ def send_email(recipient_email, qr_image_path, pedido_id):
 def index():
     return "Servidor Flask en funcionamiento"
 
+# Ruta para verificar el estado del pedido
+@app.route('/verificar_estado', methods=['POST'])
+def verificar_estado():
+    try:
+        data = request.get_json()
+        pedido_id = data.get('pedido_id')
+
+        # Aquí iría la lógica para verificar el estado del pedido
+        if pedido_id:
+            # Para esta demostración, simplemente devolvemos un estado simulado.
+            return jsonify({"estado": "Pendiente", "pedido_id": pedido_id}), 200
+        else:
+            return jsonify({"error": "Falta el pedido_id"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/generar_qr', methods=['POST'])
 def generar_qr():
     try:
