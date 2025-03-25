@@ -1,3 +1,4 @@
+from flask import Flask, jsonify, request
 import qrcode
 import os
 import time
@@ -5,7 +6,6 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
-from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
@@ -54,11 +54,12 @@ def generar_qr():
         data = request.get_json()
 
         # Verificar que los datos necesarios estén presentes
-        if 'pedido_id' not in data or 'expiracion' not in data:
+        if 'pedido_id' not in data or 'expiracion' not in data or 'email' not in data:
             return jsonify({'error': 'Faltan parámetros en la solicitud'}), 400
 
         pedido_id = data['pedido_id']
         expiracion = data['expiracion']
+        email_cliente = data['email']  # Correo electrónico del cliente
 
         # Crear el contenido del QR
         qr_content = f"{pedido_id},{expiracion}"
@@ -86,8 +87,8 @@ def generar_qr():
         # Calcular la fecha de expiración en formato UNIX (timestamp)
         expiration_time = time.time() + expiracion
 
-        # Enviar el código QR a tu correo personal (ya configurado)
-        send_email(GMAIL_USER, img_path, pedido_id)  # Enviar a tu correo personal
+        # Enviar el código QR por correo electrónico
+        send_email(email_cliente, img_path, pedido_id)
 
         # Devolver la respuesta con el enlace al QR y la expiración
         return jsonify({
