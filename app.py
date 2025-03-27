@@ -1,4 +1,11 @@
 from flask import Flask, jsonify, request
+from flask import Flask
+from flask_cors import CORS  # Importa CORS
+
+app = Flask(__name__)
+
+# Habilitar CORS para todas las rutas
+CORS(app)
 import qrcode
 import os
 import time
