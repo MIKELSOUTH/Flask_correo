@@ -1,11 +1,5 @@
 from flask import Flask, jsonify, request
-from flask import Flask
-from flask_cors import CORS  # Importa CORS
-
-app = Flask(__name__)
-
-# Habilitar CORS para todas las rutas
-CORS(app)
+from flask_cors import CORS  # Importar CORS
 import qrcode
 import os
 import time
@@ -15,6 +9,9 @@ from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 
 app = Flask(__name__)
+
+# Habilitar CORS en la aplicación Flask
+CORS(app)
 
 # Configuración de SMTP (para Gmail)
 SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
